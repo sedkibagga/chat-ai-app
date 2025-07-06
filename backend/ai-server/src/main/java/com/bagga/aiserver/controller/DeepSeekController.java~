@@ -1,0 +1,30 @@
+package com.bagga.aiserver.controller;
+
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class DeepSeekController {
+
+    private final ChatClient chatClient;
+
+    public DeepSeekController(ChatClient.Builder chatClientBuilder) {
+        this.chatClient = chatClientBuilder.build();
+    }
+
+    @GetMapping("/ask")
+    public String askDeepSeek(@RequestBody String question) {
+        Client client = new Client();
+
+        GenerateContentResponse response =
+                client.models.generateContent(
+                        "gemini-2.0-flash",
+                        "Explain how AI works in a few words",
+                        null);
+
+        System.out.println(response.text());
+    }
+}

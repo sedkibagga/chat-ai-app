@@ -1,0 +1,21 @@
+services:
+  mongodb:
+    image: mongo
+    container_name: ask-ai-mongoDb-container
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: bagga
+      MONGO_INITDB_ROOT_PASSWORD: 3asfour25102212
+      MONGO_INITDB_DATABASE: ask-ai-app
+    networks:
+      - websocket-network
+
+volumes:
+  mongo:
+
+networks:
+  websocket-network:
+    driver: bridge
