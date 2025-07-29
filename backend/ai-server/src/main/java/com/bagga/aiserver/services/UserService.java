@@ -27,6 +27,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final RedisService redisService;
     public CreateUserResponse createUserResponse(CreateUserDto createUserDto) {
         try {
             if (this.userRepository.findByEmail(createUserDto.getEmail()).isPresent()) {
@@ -57,6 +58,7 @@ public class UserService {
             throw new RuntimeException(e);
         }
     }
+
     public LoginUserResponse loginUser(LoginUserDto loginUserDto) {
         try {
             authenticationManager.authenticate(
@@ -69,7 +71,7 @@ public class UserService {
             User user = this.userRepository.findByEmail(loginUserDto.getEmail()).orElseThrow(() -> new RuntimeException("User not found"));
             String token = this.jwtService.generateToken(user);
             String refreshToken = this.jwtService.generateRefreshToken(new HashMap<>(), user);
-            return LoginUserResponse.builder()
+            LoginUserResponse loginResponse = LoginUserResponse.builder()
                     .id(user.getId())
                     .firstName(user.getFirstName())
                     .lastName(user.getLastName())
@@ -80,10 +82,43 @@ public class UserService {
                     .token(token)
                     .refreshToken(refreshToken)
                     .build();
+            this.redisService.set(user.getId(),loginResponse);
+            var store = this.redisService.get(user.getId(), LoginUserResponse.class);
+            log.info("Store: {}", store);
+            return loginResponse;
 
         } catch (Exception e) {
             log.info(e.getMessage());
             throw new RuntimeException(e);
+        }
+    }
+
+    public LoginUserResponse refreshToken(String refreshToken) {
+        try {
+            User user = this.getUserFromValidToken(refreshToken);
+
+            String newAccessToken = jwtService.generateToken(user);
+            String newRefreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
+
+            LoginUserResponse loginResponse = LoginUserResponse.builder()
+                    .id(user.getId())
+                    .firstName(user.getFirstName())
+                    .lastName(user.getLastName())
+                    .cin(user.getCin())
+                    .email(user.getEmail())
+                    .role(user.getRole())
+                    .tel(user.getTel())
+                    .token(newAccessToken)
+                    .refreshToken(newRefreshToken)
+                    .build();
+            this.redisService.set(user.getId(),loginResponse);
+            var store = this.redisService.get(user.getId(), LoginUserResponse.class);
+            log.info("Store: {}", store);
+            return loginResponse;
+
+        } catch (Exception e) {
+            log.error("Error during refresh token process: {}", e.getMessage());
+            throw new RuntimeException("Could not refresh token", e);
         }
     }
 
@@ -102,30 +137,4 @@ public class UserService {
 
         return user;
     }
-
-    public LoginUserResponse refreshToken(String refreshToken) {
-        try {
-            User user = this.getUserFromValidToken(refreshToken);
-
-            String newAccessToken = jwtService.generateToken(user);
-            String newRefreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
-
-            return LoginUserResponse.builder()
-                    .id(user.getId())
-                    .firstName(user.getFirstName())
-                    .lastName(user.getLastName())
-                    .cin(user.getCin())
-                    .email(user.getEmail())
-                    .role(user.getRole())
-                    .tel(user.getTel())
-                    .token(newAccessToken)
-                    .refreshToken(newRefreshToken)
-                    .build();
-
-        } catch (Exception e) {
-            log.error("Error during refresh token process: {}", e.getMessage());
-            throw new RuntimeException("Could not refresh token", e);
-        }
-    }
-
 }

@@ -33,9 +33,21 @@ services:
     depends_on:
       - mongodb
 
+  redis:
+    image: redis:7.0-alpine
+    container_name: redis_cache_container
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - websocket-network
+
 
 volumes:
   mongo:
+  redis_data:
 
 networks:
   websocket-network:
