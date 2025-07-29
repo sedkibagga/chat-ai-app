@@ -12,9 +12,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.HashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -65,6 +68,7 @@ public class UserService {
 
             User user = this.userRepository.findByEmail(loginUserDto.getEmail()).orElseThrow(() -> new RuntimeException("User not found"));
             String token = this.jwtService.generateToken(user);
+            String refreshToken = this.jwtService.generateRefreshToken(new HashMap<>(), user);
             return LoginUserResponse.builder()
                     .id(user.getId())
                     .firstName(user.getFirstName())
@@ -74,6 +78,7 @@ public class UserService {
                     .role(user.getRole())
                     .tel(user.getTel())
                     .token(token)
+                    .refreshToken(refreshToken)
                     .build();
 
         } catch (Exception e) {
@@ -81,4 +86,46 @@ public class UserService {
             throw new RuntimeException(e);
         }
     }
+
+    private User getUserFromValidToken(String token) {
+        String userEmail = jwtService.extractUsername(token);
+        if (userEmail == null || userEmail.isEmpty()) {
+            throw new RuntimeException("Invalid token: no email");
+        }
+
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!jwtService.isTokenValid(token, user)) {
+            throw new RuntimeException("Token is invalid or expired");
+        }
+
+        return user;
+    }
+
+    public LoginUserResponse refreshToken(String refreshToken) {
+        try {
+            User user = this.getUserFromValidToken(refreshToken);
+
+            String newAccessToken = jwtService.generateToken(user);
+            String newRefreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
+
+            return LoginUserResponse.builder()
+                    .id(user.getId())
+                    .firstName(user.getFirstName())
+                    .lastName(user.getLastName())
+                    .cin(user.getCin())
+                    .email(user.getEmail())
+                    .role(user.getRole())
+                    .tel(user.getTel())
+                    .token(newAccessToken)
+                    .refreshToken(newRefreshToken)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error during refresh token process: {}", e.getMessage());
+            throw new RuntimeException("Could not refresh token", e);
+        }
+    }
+
 }
