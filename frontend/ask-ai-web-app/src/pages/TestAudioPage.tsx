@@ -1,17 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import axios from 'axios';
+import Lottie, { type LottieRefCurrentProps } from 'lottie-react';  // <-- Import type
+import talkingAvatar from '../assets/Talking Character.json';
 
 function TestAudioPage() {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [spokenText, setSpokenText] = useState('');
-  const [speed, setSpeed] = useState(1); // normal speed
+  const [speed, setSpeed] = useState(1);
+  const [isTalking, setIsTalking] = useState(false);
+
+  // Fix: specify type and initialize with null
+  const lottieRef = useRef<LottieRefCurrentProps | null>(null);
 
   const playAudio = async () => {
     if (!text.trim()) return alert('Please enter text');
 
     try {
       setLoading(true);
+
       const response = await axios.post(
         'http://localhost:8080/api/tts',
         new URLSearchParams({ text }),
@@ -21,14 +28,23 @@ function TestAudioPage() {
       const audioBlob = response.data;
       const audioUrl = window.URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
+      audio.playbackRate = speed;
 
-      audio.playbackRate = speed; // set playback speed here
+      setIsTalking(true);
+      lottieRef.current?.play();
       audio.play();
 
-      setSpokenText(text); // show the text below the image after playing
+      audio.onended = () => {
+        setIsTalking(false);
+        lottieRef.current?.pause();
+      };
+
+      setSpokenText(text);
     } catch (error) {
       console.error('Error fetching audio:', error);
       alert('Failed to get audio from TTS service');
+      setIsTalking(false);
+      lottieRef.current?.pause();
     } finally {
       setLoading(false);
     }
@@ -36,19 +52,20 @@ function TestAudioPage() {
 
   return (
     <div className="max-w-md mx-auto p-6 bg-white rounded shadow-md text-center">
-      {/* Image */}
-      <img
-        src="https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=400&q=80"
-        alt="Speech Bubble"
-        className="mx-auto mb-4 rounded-lg shadow-md"
-      />
+      <div className="w-48 h-48 mx-auto mb-4">
+        <Lottie
+          lottieRef={lottieRef}
+          animationData={talkingAvatar}
+          loop={true}
+          autoplay={false}
+          style={{ width: '100%', height: '100%' }}
+        />
+      </div>
 
-      {/* Show text below image only after play */}
       {spokenText && (
         <p className="mb-6 text-gray-700 italic select-text">{spokenText}</p>
       )}
 
-      {/* Textarea */}
       <textarea
         rows={4}
         className="w-full p-3 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
@@ -57,7 +74,6 @@ function TestAudioPage() {
         placeholder="Type something..."
       />
 
-      {/* Speed control */}
       <label className="block mb-2 text-sm font-medium text-gray-700">
         Speed: {speed.toFixed(1)}x
         <input
@@ -71,7 +87,6 @@ function TestAudioPage() {
         />
       </label>
 
-      {/* Button */}
       <button
         onClick={playAudio}
         disabled={loading}
