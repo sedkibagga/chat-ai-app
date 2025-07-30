@@ -5,6 +5,7 @@ import com.bagga.aiserver.dtos.LoginUserDto;
 import com.bagga.aiserver.responses.CreateUserResponse;
 import com.bagga.aiserver.responses.LoginUserResponse;
 import com.bagga.aiserver.services.UserService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,5 +26,15 @@ public class UserController {
     @PostMapping("/login")
     public LoginUserResponse loginUser(@Valid  @RequestBody LoginUserDto loginUserDto) {
         return this.userService.loginUser(loginUserDto) ;
+    }
+
+    @PostMapping("/refresh")
+    public LoginUserResponse refresh(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer")) {
+            throw new RuntimeException("Invalid refresh token");
+        }
+        String refreshToken = authHeader.substring(7);
+        return this.userService.refreshToken(refreshToken) ;
     }
 }
