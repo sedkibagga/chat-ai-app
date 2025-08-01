@@ -10,10 +10,9 @@ import org.springframework.web.multipart.MultipartFile;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CreateMessageDto {
+public class InternalMessageDto {
     private String message;
-    private String fileName;
-    private String fileContent;
+    private MultipartFile file;
     private String senderId;
     private String recipientId;
 }

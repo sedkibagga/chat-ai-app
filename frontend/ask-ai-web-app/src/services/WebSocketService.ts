@@ -1,7 +1,7 @@
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 // import type { ChatMessage, ChatNotification } from '../types/Types';
-import type { loginUserResponse } from '../apis/DataResponse/responses';
+import type { ChatMessages, loginUserResponse } from '../apis/DataResponse/responses';
 import type { AskGeminiMessageDto } from '../apis/DataParam/askGeminiMessageDto';
 
 class WebSocketService {
@@ -10,12 +10,12 @@ class WebSocketService {
   connect(
     user: loginUserResponse,
     // onUserListUpdated: (users: loginUserResponse[]) => void,
-    onMessagesList : (message:string) => void
+    onMessagesList : (message:string) => void,
+    onChatMessagesList : (chatMessage:ChatMessages) => void
   ) {
     this.currentUser = user;
 
     const socket = new SockJS('http://localhost:8080/ws');
-    //const socket = new SockJS('https://websocket-chat-app-nre2.onrender.com/ws');
 
     this.stompClient = new Client({
       webSocketFactory: () => socket,
@@ -44,35 +44,27 @@ class WebSocketService {
         // onUserListUpdated(updatedUsers);
       });
 
-      // this.stompClient?.subscribe('/topic/publicUsers/addUser', (message) => {
-      //   const newUser = JSON.parse(message.body) as loginUserResponse;
-      //   onUserListUpdated([newUser]); 
-      // });
-      // In your connect method
-      // this.stompClient?.subscribe('/topic/publicUsers/disconnectUser', (message) => {
-      //   const listOfUsers = JSON.parse(message.body);
-      //   console.log('Subscribed to /topic/publicUsers/disconnectUser');
-      //   console.log("Received user disconnection update:", listOfUsers);
-      //   // onUserListUpdated(listOfUsers);
-      // });
+      ///chat/ask-ai-assistant
 
-
-
-      // this.stompClient?.subscribe(`/user/${user.id}/queue/messages`, (message) => {
-      //   console.log(`Subscribed to /user/${user.id}/queue/messages`);
-      //   console.log("Received chat message in my private queue:", message.body);
-      //   try {
-      //     // const notification = JSON.parse(message.body) as ChatNotification;
-      //     // console.log("Parsed notification:", notification);
-      //     // onChatMessage(notification);
-      //   } catch (e) {
-      //     console.error("Failed to parse chat notification:", e, message.body);
-      //   }
-      // });
+     
+      this.stompClient?.subscribe(`/user/${user.id}/queue/messages/ask-ai-assistant` , (message) => {
+       console.log(`Subscribed to /user/${user.id}/queue/messages/ask-ai-assistant`);
+        console.log("Received messages", message.body);
+        try {
+          const notification = JSON.parse(message.body) as ChatMessages;
+          console.log("Received notification", notification);
+          onChatMessagesList(notification);
+          
+        }catch(error:any){
+          console.error("failed to parse message",error);
+        }
+        
+        
+      });
       this.stompClient?.watchForReceipt('message-receipt', (frame) => {
         console.log('Subscription confirmed:', frame);
       });
-      // this.findConnectedUsers();
+      
     };
 
     this.stompClient.onWebSocketClose = (event) => {
@@ -163,16 +155,8 @@ class WebSocketService {
       // });
     }
   }
-  // findConnectedUsers() {
-  //   if (this.stompClient) {
-  //     this.stompClient.publish({
-  //       destination: '/app/findUsers/user.findUsers',
-
-
-  //     });
-  //   }
-
-  // }
+  
+ 
 }
 
 export const webSocketService = new WebSocketService();
