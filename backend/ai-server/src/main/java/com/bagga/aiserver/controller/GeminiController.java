@@ -4,13 +4,16 @@ import com.bagga.aiserver.dtos.AskGeminiMessageDto;
 import com.bagga.aiserver.dtos.CreateMessageDto;
 import com.bagga.aiserver.dtos.InternalMessageDto;
 import com.bagga.aiserver.entities.ChatMessages;
+import com.bagga.aiserver.entities.ChatRoom;
 import com.bagga.aiserver.entities.Messages;
 import com.bagga.aiserver.repositories.MessageRepository;
 import com.bagga.aiserver.services.ChatMessageService;
+import com.bagga.aiserver.services.ChatRoomService;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.checkerframework.checker.units.qual.C;
 import org.springframework.http.MediaType;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -30,6 +33,7 @@ public class GeminiController {
     private final MessageRepository messageRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final ChatMessageService chatMessageService;
+    private final ChatRoomService chatRoomService;
     @MessageMapping("/ask-gemini")
     @SendTo("/topic/public")
     public String askGeminiMessage (@Payload AskGeminiMessageDto messageDto) {
@@ -155,4 +159,15 @@ public class GeminiController {
     public List<Messages> getMessages() {
         return this.messageRepository.findAll();
     }
+
+    @GetMapping("/findChatMessages/{senderId}/{recipientId}")
+    public List<ChatMessages> findChatMessages(@PathVariable String senderId, @PathVariable String recipientId) {
+        return this.chatMessageService.findChatMessages(senderId, recipientId);
+    }
+
+    @GetMapping("findAllChatRooms")
+    public List<ChatRoom> findAllChatRooms() {
+        return this.chatRoomService.findAllChatRooms();
+    }
 }
+

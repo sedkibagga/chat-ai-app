@@ -78,6 +78,16 @@ public class ChatMessageService {
         return this.chatMessageRepository.findAll();
     }
 
+    public List<ChatMessages> findChatMessages (String senderId, String recipientId) {
+        try{
+            var chaRoomId = this.chatRoomService.getChatRoomId(senderId , recipientId, true).orElseThrow(() -> new RuntimeException("Chat room not found"));
+            return this.chatMessageRepository.findByChatId(chaRoomId);
+
+        }catch (Exception e) {
+            log.error("Error getting messages by chat id", e);
+            throw new RuntimeException("Error getting messages by chat id", e);
+        }
+    }
 
 
 }

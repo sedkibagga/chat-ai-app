@@ -3,13 +3,13 @@ import SockJS from 'sockjs-client';
 // import type { ChatMessage, ChatNotification } from '../types/Types';
 import type { ChatMessages, loginUserResponse } from '../apis/DataResponse/responses';
 import type { AskGeminiMessageDto } from '../apis/DataParam/askGeminiMessageDto';
+import type { CreateMessageDto } from '../apis/DataParam/dtos';
 
 class WebSocketService {
   private stompClient: Client | null = null;
   private currentUser: loginUserResponse | null = null;
   connect(
     user: loginUserResponse,
-    // onUserListUpdated: (users: loginUserResponse[]) => void,
     onMessagesList : (message:string) => void,
     onChatMessagesList : (chatMessage:ChatMessages) => void
   ) {
@@ -22,7 +22,7 @@ class WebSocketService {
       reconnectDelay: 5000,
       debug: (str) => console.log('[WS]', str),
       connectHeaders: {
-        'username': user.fullName
+        'username': user.firstName
       }
     });
 
@@ -30,21 +30,14 @@ class WebSocketService {
       console.log('Connected to WebSocket');
 
 
-      // this.stompClient?.publish({
-      //   destination: '/app/addUser/user.addUser',
-      //   body: JSON.stringify(user)
-      // });
-
 
       this.stompClient?.subscribe('/topic/public', (message) => {
         console.log('Subscribed to /topic/public');
         console.log("Received messages", message.body);
         onMessagesList(message.body);
-        // const updatedUsers = JSON.parse(message.body) as loginUserResponse[];
-        // onUserListUpdated(updatedUsers);
       });
 
-      ///chat/ask-ai-assistant
+     
 
      
       this.stompClient?.subscribe(`/user/${user.id}/queue/messages/ask-ai-assistant` , (message) => {
@@ -90,19 +83,7 @@ class WebSocketService {
       return;
     }
 
-    // Send disconnect notification first
-    // try {
-    //   console.log('Sending disconnect message for user:', this.currentUser);
-    //   this.stompClient.publish({
-    //     destination: '/app/disconnect/user.disconnectUser',
-    //     body: JSON.stringify(this.currentUser)
-    //   });
-    //   console.log('Disconnect message sent successfully');
-    // } catch (e) {
-    //   console.error('Error sending disconnect message:', e);
-    // }
-
-    // Then disconnect
+  
     this.stompClient.deactivate().then(() => {
       console.log('WebSocket fully disconnected');
       this.stompClient = null;
@@ -115,21 +96,21 @@ class WebSocketService {
   });
 }
 
-  // sendPrivateMessage(recipient: string, content: string) {
-  //   if (this.stompClient && this.currentUser) {
-  //     this.stompClient.publish({
-  //       destination: '/app/user.private',
-  //       body: JSON.stringify({
-  //         fullName: recipient,
-  //         nickName: content
-  //       })
-  //     });
-  //   }
-  // }
+
+
+  sendPrivateMessage(createMessageDto:CreateMessageDto) {
+     console.log("this.currentUser:", this.currentUser);
+    console.log("this.stompClient:", this.stompClient);
+    if (this.stompClient && this.currentUser) {
+      console.log("currentUser in sendPrivateMessage:", this.currentUser);
+      this.stompClient.publish({
+        destination: '/app/chat/ask-ai-assistant',
+        body: JSON.stringify(createMessageDto),
+      });
+    }
+  }
 
   sendChatMessage(content: string) {
-    // console.log("receive from chatcontext:", recipientId, "with content:", content);
-    console.log("this.currentUser:", this.currentUser);
     console.log("this.stompClient:", this.stompClient);
     if (this.stompClient && this.currentUser) {
       console.log("currentUser in sendChatMessage:", this.currentUser);
@@ -141,18 +122,7 @@ class WebSocketService {
         destination: '/app/ask-gemini',
         body: JSON.stringify(messageDto),
       });
-      // const chatMessage: ChatMessage = { //ymkn ysir prob fil chatId 
-      //   senderId: this.currentUser.id,
-      //   recipientId,
-      //   content,
-      //   timestamp: new Date()
-      // };
-      // console.log("Sending chat message:", chatMessage);
-
-      // this.stompClient.publish({
-      //   destination: '/app/chat/privateMessage',
-      //   body: JSON.stringify(chatMessage),
-      // });
+     
     }
   }
   

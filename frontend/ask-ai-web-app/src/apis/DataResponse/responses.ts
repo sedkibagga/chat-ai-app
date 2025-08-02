@@ -1,10 +1,15 @@
 export type loginUserResponse = {
     id: string;
-    nickName: string;
-    fullName: string;
+    token: string;
+    refreshToken: string;
+    firstName: string;
+    lastName: string;
     email: string;
-    status: 'ONLINE' | 'OFFLINE';
+    cin: string;
+    role: string;
+    tel: string;
 }
+
 
 export type ChatMessages = {
     id: string;

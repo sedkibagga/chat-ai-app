@@ -1,8 +1,11 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FiPaperclip, FiMic, FiSend, FiX } from "react-icons/fi";
 import talkingAvatar from '../assets/Talking Character.json';
 import Lottie, { type LottieRefCurrentProps } from 'lottie-react';  // <-- Import type
 import axios from 'axios';
+import { useChat } from "../context/ChatContext";
+import type { CreateMessageDto } from "../apis/DataParam/dtos";
+import type { ChatMessages } from "../apis/DataResponse/responses";
 
 function ChatAssistantComponent() {
     const [message, setMessage] = useState('');
@@ -11,7 +14,13 @@ function ChatAssistantComponent() {
     const [speed, setSpeed] = useState(1);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [isTalking, setIsTalking] = useState(false);
-
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [conversationMessages, setConversationMessages] = useState<ChatMessages[]>([]);
+    const { fetchChatMessages, chatMessages, currentUser, sendPrivateMessage } = useChat();
+    console.log('currentUser', currentUser);
+    console.log('chatMessages', chatMessages);
+    console.log('selectedFile', selectedFile);
+    console.log('conversationMessages', conversationMessages);
     const lottieRef = useRef<LottieRefCurrentProps | null>(null);
 
     const handleSend = () => {
@@ -61,6 +70,113 @@ function ChatAssistantComponent() {
     const toggleDrawer = () => {
         setIsDrawerOpen(!isDrawerOpen);
     };
+
+    const handleSendMessage = async () => {
+        if (!currentUser || !currentUser.id || !currentUser.token || !message.trim()) return;
+
+        let base64Content = undefined;
+        let fileName = undefined;
+
+        if (selectedFile) {
+            const reader = new FileReader();
+
+            reader.onload = () => {
+                base64Content = (reader.result as string).split(',')[1]; // remove data:...base64,
+                fileName = selectedFile.name;
+
+                sendMessageNow(base64Content, fileName);
+                setSelectedFile(null);
+            };
+
+            reader.readAsDataURL(selectedFile);
+        } else {
+            sendMessageNow(undefined, undefined);
+        }
+    };
+
+    const sendMessageNow = (fileContent?: string, fileName?: string) => {
+        const messageDto: CreateMessageDto = {
+            message,
+            senderId: currentUser!.id,
+            recipientId: 'bot-1',
+            fileContent,
+            fileName
+        };
+
+        const newMessage: ChatMessages = {
+            id: `temp-${Date.now()}`,
+            chatId: '',
+            senderId: currentUser!.id,
+            recipientId: 'bot-1',
+            content: message + (fileName ? ` (Attached: ${fileName})` : ''),
+            timestamp: new Date().toISOString()
+        };
+
+        setConversationMessages(prev => [...prev, newMessage]);
+        console.log('Sending message:', messageDto);
+        sendPrivateMessage(messageDto);
+        fetchChatMessages(currentUser!.id, 'bot-1', currentUser!.token);
+
+        setMessage('');
+        setSelectedFile(null);
+    };
+
+
+
+    useEffect(() => {
+        if (currentUser) {
+            setConversationMessages((prevMessages) => {
+                const combined = [...prevMessages];
+
+
+                chatMessages.forEach((serverMsg) => {
+                    const exists = combined.some((msg) => msg.id === serverMsg.id);
+                    if (!exists) {
+                        combined.push(serverMsg);
+                    }
+                });
+
+
+                const deduplicated = combined.filter((msg) => {
+                    // If a real message with same content and timestamp exists, drop the temp
+                    if (msg.id.startsWith('temp-')) {
+                        return !chatMessages.some(
+                            (serverMsg) =>
+                                serverMsg.content === msg.content &&
+                                serverMsg.senderId === msg.senderId &&
+                                Math.abs(new Date(serverMsg.timestamp).getTime() - new Date(msg.timestamp).getTime()) < 1000
+                        );
+                    }
+                    return true;
+                });
+
+
+                return deduplicated.sort(
+                    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+                );
+            });
+        }
+    }, [chatMessages, currentUser]);
+
+
+    useEffect(() => {
+        const fetchData = async () => {
+            if (!currentUser?.token) {
+                console.log('User not logged in');
+                return;
+            }
+
+            try {
+                await fetchChatMessages(currentUser.id, 'bot-1', currentUser.token);
+            } catch (error) {
+                console.error('Failed to fetch messages:', error);
+            }
+        };
+
+        fetchData();
+    }, [currentUser?.token]);
+
+
 
     return (
         <div className="flex flex-col flex-1 h-screen bg-gray-800 relative">
@@ -187,20 +303,50 @@ function ChatAssistantComponent() {
 
 
                 <div className="flex flex-col flex-1 overflow-y-auto bg-gradient-to-br from-gray-900 via-blue-900 to-gray-800 p-4">
-                    <div className="flex justify-center items-center h-full">
-                        <div className="text-center max-w-md">
-                            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-                                </svg>
+                    {conversationMessages.length === 0 ? (
+                        <div className="flex justify-center items-center h-full">
+                            <div className="text-center max-w-md">
+                                <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                                    </svg>
+                                </div>
+                                <h2 className="text-xl md:text-2xl font-bold text-white mb-2">Start a conversation</h2>
+                                <p className="text-gray-300 text-sm md:text-base">Type your message below to begin chatting with your AI assistant</p>
                             </div>
-                            <h2 className="text-xl md:text-2xl font-bold text-white mb-2">Start a conversation</h2>
-                            <p className="text-gray-300 text-sm md:text-base">Type your message below to begin chatting with your AI assistant</p>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="flex flex-col space-y-2 overflow-y-auto">
+                            {conversationMessages.map((msg) => {
+                                const isCurrentUser = msg.senderId === currentUser?.id;
+                                return (
+                                    <div
+                                        key={msg.id}
+                                        className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+                                    >
+                                        <div
+                                            className={`max-w-xs md:max-w-sm p-3 rounded-lg ${isCurrentUser
+                                                ? 'bg-blue-600 text-white rounded-br-none'
+                                                : 'bg-gray-700 text-white rounded-bl-none'
+                                                }`}
+                                        >
+                                            <p className="text-sm">{msg.content}</p>
+                                            <p className="text-xs mt-1 text-gray-300 text-right">{new Date(msg.timestamp).toLocaleTimeString()}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
                 </div>
             </div>
 
+            {selectedFile && (
+                <div className="text-sm text-yellow-300 mt-2">
+                    Attached file: {selectedFile.name}
+                </div>
+            )}
 
             <div className="bg-gradient-to-r from-gray-800 via-blue-800 to-gray-800 p-3 md:p-4 border-t border-gray-700">
                 <div className="max-w-4xl mx-auto">
@@ -211,9 +357,24 @@ function ChatAssistantComponent() {
                                 className="hover:text-white p-1 transition-colors"
                                 title="Attach File"
                                 aria-label="Attach file"
+                                onClick={() => document.getElementById('fileInput')?.click()}
                             >
                                 <FiPaperclip size={16} className="md:w-[18px] md:h-[18px]" />
                             </button>
+                            <input
+                                type="file"
+                                id="fileInput"
+                                accept=".pdf"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file && file.type === 'application/pdf') {
+                                        setSelectedFile(file);
+                                    } else {
+                                        alert('Please upload a valid PDF file.');
+                                    }
+                                }}
+                            />
                             <button
                                 className="hover:text-white p-1 transition-colors"
                                 title="Voice Message"
@@ -236,7 +397,7 @@ function ChatAssistantComponent() {
 
                         <button
                             type="button"
-                            onClick={handleSend}
+                            onClick={handleSendMessage}
                             disabled={!message.trim()}
                             className="absolute right-2 bottom-2 text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-full text-sm p-2 transition-all duration-200 transform hover:scale-105 disabled:hover:scale-100"
                             aria-label="Send message"
