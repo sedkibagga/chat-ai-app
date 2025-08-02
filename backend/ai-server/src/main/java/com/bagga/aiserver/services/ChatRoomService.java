@@ -5,6 +5,7 @@ import com.bagga.aiserver.repositories.ChatRoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -40,5 +41,9 @@ public class ChatRoomService {
         this.chatRoomRepository.save(senderRecipient);
         this.chatRoomRepository.save(recipientSender);
         return chatId;
+    }
+
+    public List<ChatRoom> findAllChatRooms() {
+        return this.chatRoomRepository.findAll();
     }
 }
