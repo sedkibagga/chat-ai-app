@@ -1,17 +1,24 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { webSocketService } from '../services/WebSocketService';
-import type { loginUserResponse } from '../apis/DataResponse/responses';
+import type { ChatMessages, loginUserResponse } from '../apis/DataResponse/responses';
+import { findChatMessages } from '../apis/Controller/apisController';
+import type { CreateMessageDto } from '../apis/DataParam/dtos';
+import api from '../apis/Interceptors/axiosInstance';
 interface ChatContextType {
   currentUser: loginUserResponse | null;
-  setCurrentUser:(currentUser: loginUserResponse | null) => void;
+  setCurrentUser: (currentUser: loginUserResponse | null) => void;
   connect: (user: loginUserResponse) => void;
   messages: string[];
   setMessages: (messages: string[]) => void;
+  chatMessages: ChatMessages[];
+  setChatMessages: (chatMessages: ChatMessages[]) => void;
   disconnect: () => void;
   sendChatMessage: (content: string) => void;
   error: string | null;
   setError: (error: string | null) => void;
- 
+  fetchChatMessages: (senderId: string, recipientId: string, token: string) => Promise<void>;
+  loadUser: () => Promise<void>;
+  sendPrivateMessage: (createMessageDto: CreateMessageDto) => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -20,34 +27,28 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<loginUserResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessages[]>([]);
   const connect = async (user: loginUserResponse) => {
     setCurrentUser(user);
     console.log("Connecting user:", user);
-    //  if (user.id && selectedUser?.id) {
-    //   const existingMessages = await apisController.findChatMessages(user.id, selectedUser.id);
-    //   setChatMessages(existingMessages);
-    //   console.log("Fetched existing messages:", existingMessages);
-    // }
     webSocketService.connect(
       user,
-      // (updatedUsers) => setUsers(updatedUsers),
       (message) => setMessages(prev => [...prev, message]),
-      // (notification) => {
-      //   console.log('Received notification:', notification);
-      //   setChatMessages(prev => {
-      //     const newMessages = [...prev, {
-      //       id: notification.id,
-      //       chatId: notification.chatId,
-      //       senderId: notification.senderId,
-      //       recipientId: notification.recipientId,
-      //       content: notification.content,
-      //       timestamp: new Date()
-      //     }];
-      //     console.log('Updated messages:', newMessages);
-      //     return newMessages;
-      //   });
-      // },
-      // onError: (error) => setError(error)
+      (chatMessage) => {
+        console.log('Received notification:', chatMessage);
+        setChatMessages(prev => {
+          const newMessages = [...prev, {
+            id: chatMessage.id,
+            chatId: chatMessage.chatId,
+            senderId: chatMessage.senderId,
+            recipientId: chatMessage.recipientId,
+            content: chatMessage.content,
+            timestamp: chatMessage.timestamp
+          }];
+          console.log('Updated messages:', newMessages);
+          return newMessages;
+        });
+      }
     );
   };
 
@@ -61,55 +62,60 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     webSocketService.sendChatMessage(content);
   };
 
+  const sendPrivateMessage = (createMessageDto: CreateMessageDto) => {
+    if (!currentUser) return;
+    webSocketService.sendPrivateMessage(createMessageDto);
 
-  
+  };
 
-  // const fetchChatMessages = useCallback(async (senderId: string, recipientId: string) => {
-  //   try {
-  //     const response = await apisController.findChatMessages(senderId, recipientId);
-  //     setChatMessages(prev => {
-  //       // Merge new messages with existing ones, avoiding duplicates
-  //       const newMessages = response.filter(newMsg => 
-  //         !prev.some(existingMsg => existingMsg.id === newMsg.id)
-  //       );
-  //       return [...prev, ...newMessages];
-  //     });
-  //   } catch (error) {
-  //     console.error('Failed to fetch chat messages:', error);
-  //   }
-  // }, []);
-  
-  
+
+
+
+  const fetchChatMessages = useCallback(async (senderId: string, recipientId: string, token: string) => {
+    try {
+      const response = await findChatMessages(senderId, recipientId);
+      setChatMessages(prev => {
+        // Merge new messages with existing ones, avoiding duplicates
+        const newMessages = response.filter(newMsg =>
+          !prev.some(existingMsg => existingMsg.id === newMsg.id)
+        );
+        return [...prev, ...newMessages];
+      });
+    } catch (error) {
+      console.error('Failed to fetch chat messages:', error);
+    }
+  }, []);
+
+
 
   useEffect(() => {
     return () => {
       webSocketService.disconnect();
     };
   }, []);
+  const loadUser = async () => {
+    try {
+      const res = await api.get("/api/me");
+      setCurrentUser(res.data);
+    } catch (error) {
+      console.error("Failed to fetch current user", error);
+      setCurrentUser(null);
+    }
+  };
+
 
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const storedUser = await localStorage.getItem('userData');
-        if (storedUser) {
-          setCurrentUser(JSON.parse(storedUser));
-        }
-      } catch (error) {
-        console.error('Failed to load user data:', error);
-      }
-    };
 
     loadUser();
-    // fetchUsers();
-    // fetchChatMessages(senderId, recipientId); 
+
 
   }, []);
-   
-//   useEffect(() => {
-//   if (currentUser) {
-//     connect(currentUser);
-//   }
-// }, [currentUser]);
+
+  useEffect(() => {
+    if (currentUser) {
+      connect(currentUser);
+    }
+  }, [currentUser]);
 
 
   return (
@@ -123,7 +129,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sendChatMessage,
       error,
       setError,
-     
+      chatMessages,
+      setChatMessages,
+      fetchChatMessages,
+      loadUser,
+      sendPrivateMessage
+
     }}>
       {children}
     </ChatContext.Provider>

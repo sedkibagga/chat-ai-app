@@ -3,6 +3,7 @@ import { useChat } from '../context/ChatContext';
 import { Button } from "flowbite-react";
 import { useNavigate } from 'react-router-dom';
 import type { loginUserResponse } from '../apis/DataResponse/responses';
+import { login } from '../apis/Controller/apisController';
 
 // type LoginProps = {
 //     onConnect: () => void;
@@ -20,8 +21,8 @@ const Login: React.FC = () => {
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
-     const navigate = useNavigate();
-    const { connect,  setCurrentUser } = useChat();
+    const navigate = useNavigate();
+    const { connect, setCurrentUser , loadUser  } = useChat();
     const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
     const [darkMode, setDarkMode] = useState(false);
     const [redMode, setRedMode] = useState(false);
@@ -60,31 +61,33 @@ const Login: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (!validateForm()) return;
-        
+
         try {
             setIsSubmitting(true);
-           const userDto:loginUserResponse = {
-            id: 'id-1',
-            email: formData.email,
-            fullName: '',
-            nickName: '',
-            status: 'ONLINE'
-           }
-            
-            setCurrentUser(userDto);
+            const userLoggedIn = await login(formData);
+           
+
+            setCurrentUser(userLoggedIn);
             connect({
-                id: userDto.id || '',
+                id: userLoggedIn.id || '',
                 email: formData.email,
-                fullName: userDto.fullName,
-                nickName: userDto.nickName,
-                status: 'ONLINE'
+                token: userLoggedIn.token,
+                refreshToken: userLoggedIn.refreshToken,
+                firstName: userLoggedIn.firstName,
+                lastName: userLoggedIn.lastName,
+                cin: userLoggedIn.cin,
+                role: userLoggedIn.role,
+                tel: userLoggedIn.tel
             });
-            
-            
-             navigate('/chat');
-            
+
+            await localStorage.setItem('userData', JSON.stringify(userLoggedIn));
+           
+            loadUser();
+
+            navigate('/chatAsistant');
+
         } catch (error: any) {
             console.error("Error during login:", error);
             setErrors({
@@ -123,17 +126,15 @@ const Login: React.FC = () => {
             <div className="flex gap-4 mb-6">
                 <button
                     onClick={() => setDarkMode(!darkMode)}
-                    className={`px-4 py-2 rounded-md font-medium transition-all ${
-                        darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'
-                    }`}
+                    className={`px-4 py-2 rounded-md font-medium transition-all ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'
+                        }`}
                 >
                     {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
                 </button>
                 <button
                     onClick={() => setRedMode(!redMode)}
-                    className={`px-4 py-2 rounded-md font-medium transition-all ${
-                        redMode ? 'bg-red-600 text-white' : 'bg-white text-red-600'
-                    }`}
+                    className={`px-4 py-2 rounded-md font-medium transition-all ${redMode ? 'bg-red-600 text-white' : 'bg-white text-red-600'
+                        }`}
                 >
                     {redMode ? '🌈 Normal Colors' : '🔥 Red Theme'}
                 </button>
@@ -187,15 +188,14 @@ const Login: React.FC = () => {
                     <button
                         type="submit"
                         disabled={isSubmitting}
-                        className={`w-full py-2 px-4 rounded-md font-medium transition-all ${
-                            isSubmitting 
+                        className={`w-full py-2 px-4 rounded-md font-medium transition-all ${isSubmitting
                                 ? 'bg-gray-400 cursor-not-allowed'
-                                : redMode 
+                                : redMode
                                     ? 'bg-red-600 hover:bg-red-700 text-white'
                                     : darkMode
                                         ? 'bg-blue-600 hover:bg-blue-700 text-white'
                                         : 'bg-blue-600 hover:bg-blue-700 text-white'
-                        }`}
+                            }`}
                     >
                         {isSubmitting ? 'Logging in...' : 'Connect'}
                     </button>
@@ -207,7 +207,7 @@ const Login: React.FC = () => {
                 </p>
                 <Button
                     className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:bg-gradient-to-bl focus:ring-4 focus:ring-cyan-300 dark:focus:ring-blue-800 h-10 px-6 py-2 rounded-lg transition duration-300"
-                    // onClick={() => navigate('/signup')}
+                // onClick={() => navigate('/signup')}
                 >
                     Sign Up
                 </Button>
