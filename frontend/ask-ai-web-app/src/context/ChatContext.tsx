@@ -3,6 +3,7 @@ import { webSocketService } from '../services/WebSocketService';
 import type { ChatMessages, loginUserResponse } from '../apis/DataResponse/responses';
 import { findChatMessages } from '../apis/Controller/apisController';
 import type { CreateMessageDto } from '../apis/DataParam/dtos';
+import api from '../apis/Interceptors/axiosInstance';
 interface ChatContextType {
   currentUser: loginUserResponse | null;
   setCurrentUser: (currentUser: loginUserResponse | null) => void;
@@ -64,7 +65,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sendPrivateMessage = (createMessageDto: CreateMessageDto) => {
     if (!currentUser) return;
     webSocketService.sendPrivateMessage(createMessageDto);
-    
+
   };
 
 
@@ -72,7 +73,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchChatMessages = useCallback(async (senderId: string, recipientId: string, token: string) => {
     try {
-      const response = await findChatMessages(senderId, recipientId, token);
+      const response = await findChatMessages(senderId, recipientId);
       setChatMessages(prev => {
         // Merge new messages with existing ones, avoiding duplicates
         const newMessages = response.filter(newMsg =>
@@ -94,14 +95,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
   const loadUser = async () => {
     try {
-      const storedUser = await localStorage.getItem('userData');
-      if (storedUser) {
-        setCurrentUser(JSON.parse(storedUser));
-      }
+      const res = await api.get("/api/me");
+      setCurrentUser(res.data);
     } catch (error) {
-      console.error('Failed to load user data:', error);
+      console.error("Failed to fetch current user", error);
+      setCurrentUser(null);
     }
   };
+
 
   useEffect(() => {
 

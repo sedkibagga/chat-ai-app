@@ -1,7 +1,7 @@
 export type loginUserResponse = {
     id: string;
-    token: string;
-    refreshToken: string;
+    token?: string;
+    refreshToken?: string;
     firstName: string;
     lastName: string;
     email: string;
