@@ -115,7 +115,7 @@ function ChatAssistantComponent() {
         setConversationMessages(prev => [...prev, newMessage]);
         console.log('Sending message:', messageDto);
         sendPrivateMessage(messageDto);
-        fetchChatMessages(currentUser!.id, 'bot-1', currentUser!.token);
+        fetchChatMessages(currentUser!.id, 'bot-1');
 
         setMessage('');
         setSelectedFile(null);
@@ -167,7 +167,7 @@ function ChatAssistantComponent() {
             }
 
             try {
-                await fetchChatMessages(currentUser.id, 'bot-1', currentUser.token);
+                await fetchChatMessages(currentUser.id, 'bot-1');
             } catch (error) {
                 console.error('Failed to fetch messages:', error);
             }

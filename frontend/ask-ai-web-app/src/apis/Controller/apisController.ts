@@ -2,14 +2,13 @@
 import type { ChatMessages, loginUserResponse } from "../DataResponse/responses";
 import type { loginDto } from "../DataParam/dtos";
 import api from "../Interceptors/axiosInstance";
-
 export const login = async (user: loginDto): Promise<loginUserResponse> => {
+
   try {
     const response = await api.post("/api/login", user);
-
+    
     const token = response.data.token;
-
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    console.log("Received token:", token);
 
     const userData:loginUserResponse = {
       id: response.data.id,
@@ -18,7 +17,7 @@ export const login = async (user: loginDto): Promise<loginUserResponse> => {
       email: response.data.email,
       cin: response.data.cin,
       role: response.data.role,
-      tel: response.data.tel
+      tel: response.data.tel,
     }
     return userData; 
   } catch (error) {
@@ -33,6 +32,7 @@ export const findChatMessages = async (
 ): Promise<ChatMessages[]> => {
   try {
     const res = await api.get(`/findChatMessages/${senderId}/${recipientId}`);
+    console.log("Fetched chat messages:", res.data);
     return res.data;
   } catch (error: any) {
     console.error("Error fetching chat messages:", error);

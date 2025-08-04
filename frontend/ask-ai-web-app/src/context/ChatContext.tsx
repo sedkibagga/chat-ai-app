@@ -16,7 +16,7 @@ interface ChatContextType {
   sendChatMessage: (content: string) => void;
   error: string | null;
   setError: (error: string | null) => void;
-  fetchChatMessages: (senderId: string, recipientId: string, token: string) => Promise<void>;
+  fetchChatMessages: (senderId: string, recipientId: string) => Promise<void>;
   loadUser: () => Promise<void>;
   sendPrivateMessage: (createMessageDto: CreateMessageDto) => void;
 }
@@ -71,7 +71,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
 
-  const fetchChatMessages = useCallback(async (senderId: string, recipientId: string, token: string) => {
+  const fetchChatMessages = useCallback(async (senderId: string, recipientId: string) => {
     try {
       const response = await findChatMessages(senderId, recipientId);
       setChatMessages(prev => {
@@ -79,6 +79,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const newMessages = response.filter(newMsg =>
           !prev.some(existingMsg => existingMsg.id === newMsg.id)
         );
+        console.log('New messages:', newMessages);
         return [...prev, ...newMessages];
       });
     } catch (error) {
