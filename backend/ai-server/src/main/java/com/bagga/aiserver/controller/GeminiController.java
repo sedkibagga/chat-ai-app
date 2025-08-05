@@ -59,6 +59,7 @@ public class GeminiController {
     @MessageMapping("/chat/ask-ai-assistant")
     public void askAiAssistant(@Payload CreateMessageDto messageDto) {
         try {
+            log.info("messageDto: {}", messageDto);
             MultipartFile file = null;
             if (messageDto.getFileContent() != null && messageDto.getFileName() != null) {
                 byte[] decoded = Base64.getDecoder().decode(messageDto.getFileContent());
@@ -69,6 +70,8 @@ public class GeminiController {
                         decoded
                 );
             }
+
+
 
             InternalMessageDto internal = InternalMessageDto.builder()
                     .message(messageDto.getMessage())
@@ -84,6 +87,8 @@ public class GeminiController {
                     "/queue/messages/ask-ai-assistant",
                     created
             );
+
+
         } catch (Exception e) {
             log.error("WebSocket error", e);
         }

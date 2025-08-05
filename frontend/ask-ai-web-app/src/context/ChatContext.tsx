@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { webSocketService } from '../services/WebSocketService';
-import type { ChatMessages, loginUserResponse } from '../apis/DataResponse/responses';
+import type { ChatMessages, loginUserResponse, MessageToSpeakResponse } from '../apis/DataResponse/responses';
 import { findChatMessages } from '../apis/Controller/apisController';
 import type { CreateMessageDto } from '../apis/DataParam/dtos';
 import api from '../apis/Interceptors/axiosInstance';
@@ -19,6 +19,8 @@ interface ChatContextType {
   fetchChatMessages: (senderId: string, recipientId: string) => Promise<void>;
   loadUser: () => Promise<void>;
   sendPrivateMessage: (createMessageDto: CreateMessageDto) => void;
+  spokenText: MessageToSpeakResponse|null;
+  setSpokenText: (spokenText: MessageToSpeakResponse|null) => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -28,12 +30,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessages[]>([]);
+  const [spokenText, setSpokenText] = useState<MessageToSpeakResponse|null>(null);
   const connect = async (user: loginUserResponse) => {
     setCurrentUser(user);
     console.log("Connecting user:", user);
     webSocketService.connect(
       user,
       (message) => setMessages(prev => [...prev, message]),
+      (spokenText) => setSpokenText(spokenText),
       (chatMessage) => {
         console.log('Received notification:', chatMessage);
         setChatMessages(prev => {
@@ -134,7 +138,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setChatMessages,
       fetchChatMessages,
       loadUser,
-      sendPrivateMessage
+      sendPrivateMessage,
+      spokenText,
+      setSpokenText
 
     }}>
       {children}

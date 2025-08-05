@@ -31,25 +31,42 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        final String authHeader = request.getHeader("Authorization");
-        final String jwt;
         final String requestURI = request.getRequestURI();
 
         if (requestURI.startsWith("/api/login") ||
                 requestURI.startsWith("/ws") ||
+                requestURI.startsWith("/api/refresh") ||
                 requestURI.startsWith("/api/tts") ||
                 requestURI.startsWith("/api/createClient") ||
                 requestURI.startsWith("/api/createAdmin") ||
                 requestURI.startsWith("/swagger-ui/") ||
-                requestURI.startsWith("/v3/api-docs/") ||
-                authHeader == null ||
-                !authHeader.startsWith("Bearer")) {
+                requestURI.startsWith("/v3/api-docs/")) {
             filterChain.doFilter(request, response);
             return;
         }
 
 
-        jwt = authHeader.substring(7);
+        String jwt = null;
+
+
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            jwt = authHeader.substring(7);
+        } else {
+            if (request.getCookies() != null) {
+                for (var cookie : request.getCookies()) {
+                    if ("accessToken".equals(cookie.getName())) {
+                        jwt = cookie.getValue();
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (jwt == null) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         String userEmail = jwtService.extractUsername(jwt);
 
         if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {

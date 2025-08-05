@@ -90,17 +90,19 @@ public class UserService {
             log.info("Store: {}", store);
             Cookie cookie = new Cookie("refreshToken", refreshToken);
             cookie.setHttpOnly(true);
-            cookie.setSecure(true); // Set to true in production (HTTPS only)
+            cookie.setSecure(false); // Set to true in production (HTTPS only)
             cookie.setPath("/");
             cookie.setMaxAge(7 * 24 * 60 * 60); // 7 days
             response.addCookie(cookie);
+
             Cookie accessTokenCookie = new Cookie("accessToken", token);
             accessTokenCookie.setHttpOnly(true);
-            accessTokenCookie.setSecure(true); // Set to true in production
+            accessTokenCookie.setSecure(false); // Set to true in production
             accessTokenCookie.setPath("/");
             accessTokenCookie.setMaxAge(15 * 60); // 15 minutes
             response.addCookie(accessTokenCookie);
-
+            log.info("refresh cookie: {}", cookie);
+            log.info("access cookie: {}", accessTokenCookie);
             return loginResponse;
 
         } catch (Exception e) {
@@ -110,6 +112,7 @@ public class UserService {
     }
 
     public LoginUserResponse refreshToken(HttpServletRequest request, HttpServletResponse response) {
+        log.info("Refreshing token");
         String refreshToken = null;
         String accessToken = null;
         Cookie[] cookies = request.getCookies();
@@ -123,16 +126,7 @@ public class UserService {
             }
         }
 
-        for (Cookie cookie : request.getCookies()) {
-            if (cookie.getName().equals("accessToken")) {
-                accessToken = cookie.getValue();
-                break;
-            }
-        }
 
-        if (accessToken == null) {
-            throw new RuntimeException("Access token not found");
-        }
 
         if (refreshToken == null) {
             throw new RuntimeException("Refresh token not found in cookie");
@@ -157,6 +151,7 @@ public class UserService {
                 .email(user.getEmail())
                 .role(user.getRole())
                 .tel(user.getTel())
+                .token(newAccessToken)
                 .refreshToken(null)
                 .build();
 
@@ -164,13 +159,14 @@ public class UserService {
 
         Cookie newCookie = new Cookie("refreshToken", newRefreshToken);
         newCookie.setHttpOnly(true);
-        newCookie.setSecure(true);
+        newCookie.setSecure(false);
         newCookie.setPath("/");
         newCookie.setMaxAge(7 * 24 * 60 * 60);
         response.addCookie(newCookie);
+
         Cookie newAccessTokenCookie = new Cookie("accessToken", newAccessToken);
         newAccessTokenCookie.setHttpOnly(true);
-        newAccessTokenCookie.setSecure(true); // true in production
+        newAccessTokenCookie.setSecure(false); // true in production
         newAccessTokenCookie.setPath("/");
         newAccessTokenCookie.setMaxAge(15 * 60);
         response.addCookie(newAccessTokenCookie);
@@ -247,6 +243,7 @@ public class UserService {
                 .email(user.getEmail())
                 .role(user.getRole())
                 .tel(user.getTel())
+                .token(token)
                 .refreshToken(null)
                 .build();
     }

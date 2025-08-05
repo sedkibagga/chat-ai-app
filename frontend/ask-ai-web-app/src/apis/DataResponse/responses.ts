@@ -20,3 +20,7 @@ export type ChatMessages = {
     timestamp: string;
 }
 
+export type MessageToSpeakResponse = {
+    spokenText: string;
+}
+

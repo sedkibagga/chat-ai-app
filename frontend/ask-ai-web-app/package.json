@@ -16,6 +16,7 @@
     "axios": "^1.10.0",
     "dom": "^0.0.3",
     "flowbite-react": "^0.11.8",
+    "howler": "^2.2.4",
     "lottie-react": "^2.4.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
+    "@types/howler": "^2.2.12",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@types/sockjs-client": "^1.5.4",

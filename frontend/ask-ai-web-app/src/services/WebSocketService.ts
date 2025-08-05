@@ -1,7 +1,7 @@
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 // import type { ChatMessage, ChatNotification } from '../types/Types';
-import type { ChatMessages, loginUserResponse } from '../apis/DataResponse/responses';
+import type { ChatMessages, loginUserResponse, MessageToSpeakResponse } from '../apis/DataResponse/responses';
 import type { AskGeminiMessageDto } from '../apis/DataParam/askGeminiMessageDto';
 import type { CreateMessageDto } from '../apis/DataParam/dtos';
 
@@ -11,6 +11,7 @@ class WebSocketService {
   connect(
     user: loginUserResponse,
     onMessagesList : (message:string) => void,
+    onSpokenText:(spokenText:MessageToSpeakResponse|null) => void,
     onChatMessagesList : (chatMessage:ChatMessages) => void
   ) {
     this.currentUser = user;
@@ -52,6 +53,21 @@ class WebSocketService {
           console.error("failed to parse message",error);
         }
         
+        
+      });
+     
+
+      this.stompClient?.subscribe(`/user/${user.id}/queue/messages/ai-asistant-spoken` , (message) => {
+        console.log(`Subscribed to /user/${user.id}/queue/messages/ai-asistant-spoken`);
+        console.log("Received messages", message.body);
+        try {
+          const notification = JSON.parse(message.body) as MessageToSpeakResponse;
+          console.log("Received notification", notification);
+          onSpokenText(notification);
+          
+        }catch(error:any){
+          console.error("failed to parse message",error);
+        }
         
       });
       this.stompClient?.watchForReceipt('message-receipt', (frame) => {
@@ -101,6 +117,7 @@ class WebSocketService {
   sendPrivateMessage(createMessageDto:CreateMessageDto) {
      console.log("this.currentUser:", this.currentUser);
     console.log("this.stompClient:", this.stompClient);
+    console.log("createMessageDto in websocket:", createMessageDto);
     if (this.stompClient && this.currentUser) {
       console.log("currentUser in sendPrivateMessage:", this.currentUser);
       this.stompClient.publish({
