@@ -67,7 +67,7 @@ const Login: React.FC = () => {
         try {
             setIsSubmitting(true);
             const userLoggedIn = await login(formData);
-           
+            console.log("User logged in:", userLoggedIn);
 
             setCurrentUser(userLoggedIn);
             connect({

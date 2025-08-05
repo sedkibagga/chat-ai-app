@@ -1,7 +1,7 @@
 export type loginUserResponse = {
     id: string;
-    token: string;
-    refreshToken: string;
+    token?: string;
+    refreshToken?: string;
     firstName: string;
     lastName: string;
     email: string;
@@ -18,5 +18,9 @@ export type ChatMessages = {
     recipientId: string;
     content: string;
     timestamp: string;
+}
+
+export type MessageToSpeakResponse = {
+    spokenText: string;
 }
 

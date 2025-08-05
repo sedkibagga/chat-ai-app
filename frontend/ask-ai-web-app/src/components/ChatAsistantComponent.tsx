@@ -1,71 +1,91 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { FiPaperclip, FiMic, FiSend, FiX } from "react-icons/fi";
 import talkingAvatar from '../assets/Talking Character.json';
-import Lottie, { type LottieRefCurrentProps } from 'lottie-react';  // <-- Import type
+import Lottie, { type LottieRefCurrentProps } from 'lottie-react';
 import axios from 'axios';
+import { Howl } from 'howler';
 import { useChat } from "../context/ChatContext";
 import type { CreateMessageDto } from "../apis/DataParam/dtos";
 import type { ChatMessages } from "../apis/DataResponse/responses";
+import { extractTextFromFile } from "../apis/Controller/apisController";
 
 function ChatAssistantComponent() {
     const [message, setMessage] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [spokenText, setSpokenText] = useState('');
     const [speed, setSpeed] = useState(1);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [isTalking, setIsTalking] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [conversationMessages, setConversationMessages] = useState<ChatMessages[]>([]);
-    const { fetchChatMessages, chatMessages, currentUser, sendPrivateMessage } = useChat();
-    console.log('currentUser', currentUser);
-    console.log('chatMessages', chatMessages);
-    console.log('selectedFile', selectedFile);
-    console.log('conversationMessages', conversationMessages);
+    const { fetchChatMessages, chatMessages, currentUser, sendPrivateMessage, spokenText } = useChat();
+    const [audio, setAudio] = useState<Howl | null>(null);
     const lottieRef = useRef<LottieRefCurrentProps | null>(null);
 
-    const handleSend = () => {
-        if (message.trim()) {
-            console.log('Sending message:', message);
-            setMessage('');
-        }
-    };
+    // Handle spoken text changes
+    useEffect(() => {
+        if (spokenText && spokenText.spokenText) {
+            const handleTextToSpeech = async () => {
+                try {
+                    // Stop any currently playing audio
+                    if (audio) {
+                        audio.stop();
+                        audio.unload();
+                    }
 
-    const playAudio = async () => {
-        if (!message.trim()) return alert('Please enter text');
+                    // Convert text to speech
+                    const response = await axios.post(
+                        'http://localhost:8080/api/tts',
+                        new URLSearchParams({ text: spokenText.spokenText }),
+                        { responseType: 'blob', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+                    );
 
-        try {
-            setLoading(true);
+                    const audioBlob = response.data;
+                    const audioUrl = URL.createObjectURL(audioBlob);
 
-            const response = await axios.post(
-                'http://localhost:8080/api/tts',
-                new URLSearchParams({ message }),
-                { responseType: 'blob', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-            );
+                    // Create new Howl instance
+                    const newAudio = new Howl({
+                        src: [audioUrl],
+                        format: ['mp3', 'wav'],
+                        rate: speed,
+                        onplay: () => {
+                            setIsTalking(true);
+                            lottieRef.current?.play();
+                        },
+                        onend: () => {
+                            setIsTalking(false);
+                            lottieRef.current?.pause();
+                        },
+                        onstop: () => {
+                            setIsTalking(false);
+                            lottieRef.current?.pause();
+                        }
+                    });
 
-            const audioBlob = response.data;
-            const audioUrl = window.URL.createObjectURL(audioBlob);
-            const audio = new Audio(audioUrl);
-            audio.playbackRate = speed;
-
-            setIsTalking(true);
-            lottieRef.current?.play();
-            audio.play();
-
-            audio.onended = () => {
-                setIsTalking(false);
-                lottieRef.current?.pause();
+                    setAudio(newAudio);
+                    newAudio.play();
+                } catch (error) {
+                    console.error('Error handling text to speech:', error);
+                    setIsTalking(false);
+                    lottieRef.current?.pause();
+                }
             };
 
-            setSpokenText(message);
-        } catch (error) {
-            console.error('Error fetching audio:', error);
-            alert('Failed to get audio from TTS service');
-            setIsTalking(false);
-            lottieRef.current?.pause();
-        } finally {
-            setLoading(false);
+            handleTextToSpeech();
         }
-    };
+
+        return () => {
+            // Cleanup audio when component unmounts
+            if (audio) {
+                audio.unload();
+            }
+        };
+    }, [spokenText]);
+
+    // Update speed of current audio
+    useEffect(() => {
+        if (audio) {
+            audio.rate(speed);
+        }
+    }, [speed, audio]);
 
     const toggleDrawer = () => {
         setIsDrawerOpen(!isDrawerOpen);
@@ -74,20 +94,13 @@ function ChatAssistantComponent() {
     const handleSendMessage = async () => {
         if (!currentUser || !currentUser.id || !currentUser.token || !message.trim()) return;
 
-        let base64Content = undefined;
-        let fileName = undefined;
-
         if (selectedFile) {
             const reader = new FileReader();
-
-            reader.onload = () => {
-                base64Content = (reader.result as string).split(',')[1]; // remove data:...base64,
-                fileName = selectedFile.name;
-
-                sendMessageNow(base64Content, fileName);
+            reader.onload = async () => {
+                const textExtracted = await extractTextFromFile(selectedFile);
+                sendMessageNow(textExtracted, undefined);
                 setSelectedFile(null);
             };
-
             reader.readAsDataURL(selectedFile);
         } else {
             sendMessageNow(undefined, undefined);
@@ -96,7 +109,7 @@ function ChatAssistantComponent() {
 
     const sendMessageNow = (fileContent?: string, fileName?: string) => {
         const messageDto: CreateMessageDto = {
-            message,
+            message: message + (fileContent ? ` (Attached: ${fileContent})` : ''),
             senderId: currentUser!.id,
             recipientId: 'bot-1',
             fileContent,
@@ -108,127 +121,129 @@ function ChatAssistantComponent() {
             chatId: '',
             senderId: currentUser!.id,
             recipientId: 'bot-1',
-            content: message + (fileName ? ` (Attached: ${fileName})` : ''),
+            content: message,
             timestamp: new Date().toISOString()
         };
 
         setConversationMessages(prev => [...prev, newMessage]);
-        console.log('Sending message:', messageDto);
         sendPrivateMessage(messageDto);
-        fetchChatMessages(currentUser!.id, 'bot-1', currentUser!.token);
-
+        fetchChatMessages(currentUser!.id, 'bot-1');
         setMessage('');
         setSelectedFile(null);
     };
 
-
-
     useEffect(() => {
         if (currentUser) {
             setConversationMessages((prevMessages) => {
-                const combined = [...prevMessages];
-
-
-                chatMessages.forEach((serverMsg) => {
-                    const exists = combined.some((msg) => msg.id === serverMsg.id);
-                    if (!exists) {
-                        combined.push(serverMsg);
-                    }
-                });
-
-
-                const deduplicated = combined.filter((msg) => {
-                    // If a real message with same content and timestamp exists, drop the temp
+                const tempMessagesMap = new Map();
+                prevMessages.forEach(msg => {
                     if (msg.id.startsWith('temp-')) {
-                        return !chatMessages.some(
-                            (serverMsg) =>
-                                serverMsg.content === msg.content &&
-                                serverMsg.senderId === msg.senderId &&
-                                Math.abs(new Date(serverMsg.timestamp).getTime() - new Date(msg.timestamp).getTime()) < 1000
-                        );
+                        const key = `${msg.content}-${msg.timestamp}`;
+                        tempMessagesMap.set(key, msg);
                     }
-                    return true;
                 });
 
+                const merged = [...chatMessages];
+                prevMessages.forEach(prevMsg => {
+                    if (prevMsg.id.startsWith('temp-')) {
+                        const exists = chatMessages.some(serverMsg =>
+                            serverMsg.content === prevMsg.content &&
+                            Math.abs(new Date(serverMsg.timestamp).getTime() - new Date(prevMsg.timestamp).getTime()) < 1000
+                        );
+                        if (!exists) {
+                            merged.push(prevMsg);
+                        }
+                    }
+                });
 
-                return deduplicated.sort(
+                return merged.sort(
                     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
                 );
             });
         }
     }, [chatMessages, currentUser]);
 
-
     useEffect(() => {
         const fetchData = async () => {
-            if (!currentUser?.token) {
-                console.log('User not logged in');
-                return;
-            }
-
+            if (!currentUser?.token) return;
             try {
-                await fetchChatMessages(currentUser.id, 'bot-1', currentUser.token);
+                await fetchChatMessages(currentUser.id, 'bot-1');
             } catch (error) {
                 console.error('Failed to fetch messages:', error);
             }
         };
-
         fetchData();
     }, [currentUser?.token]);
-
-
 
     return (
         <div className="flex flex-col flex-1 h-screen bg-gray-800 relative">
 
             {isDrawerOpen && (
-                <div
-                    className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-                    onClick={toggleDrawer}
-                />
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" onClick={toggleDrawer} />
             )}
 
+            <div
+                className={`fixed left-0 top-0 h-full w-80 bg-gray-900 transform transition-transform duration-300 ease-in-out z-50 lg:hidden flex flex-col ${isDrawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
+            >
 
-            <div className={`fixed left-0 top-0 h-full w-80 bg-gray-900 transform transition-transform duration-300 ease-in-out z-50 lg:hidden ${isDrawerOpen ? 'translate-x-0' : '-translate-x-full'
-                }`}>
-                <div className="flex items-center justify-between p-4 border-b border-gray-700">
+                <div className="flex items-center justify-between p-4 border-b border-gray-700 flex-shrink-0">
                     <h2 className="text-lg font-semibold text-white">Avatar Assistant</h2>
-                    <button
-                        onClick={toggleDrawer}
-                        className="text-gray-400 hover:text-white p-1"
-                    >
+                    <button onClick={toggleDrawer} className="text-gray-400 hover:text-white p-1">
                         <FiX size={24} />
                     </button>
                 </div>
-                <div className="p-4 h-full mt-6">
-                    <div className="w-full h-64 flex-1 bg-gray-800 rounded-lg flex items-center justify-center">
-                        <div className="w-full bg-gray-800 rounded-lg p-6 text-center">
 
-                            <Lottie
-                                lottieRef={lottieRef}
-                                animationData={talkingAvatar}
-                                loop={true}
-                                autoplay={false}
-                                style={{ width: '100%', height: '100%' }}
+
+                <div className="flex-1 overflow-y-auto p-4">
+                    <div className="w-full bg-gray-800 rounded-lg p-6 text-center">
+                        <Lottie
+                            lottieRef={lottieRef}
+                            animationData={talkingAvatar}
+                            loop={true}
+                            autoplay={isTalking}
+                            style={{ width: '100%', height: '100%' }}
+                        />
+                        {spokenText && (
+                            <p className="mb-6 text-gray-300 italic select-text">{spokenText.spokenText}</p>
+                        )}
+                        <label className="block mb-2 text-sm font-medium text-gray-300">
+                            Speed: {speed.toFixed(1)}x
+                            <input
+                                type="range"
+                                min="0.5"
+                                max="2"
+                                step="0.1"
+                                value={speed}
+                                onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                                className="w-full mt-1"
                             />
-                            {spokenText && (
-                                <p className="mb-6 text-gray-700 italic select-text">{spokenText}</p>
-                            )}
-                            <label className="block mb-2 text-sm font-medium text-gray-700">
-                                Speed: {speed.toFixed(1)}x
-                                <input
-                                    type="range"
-                                    min="0.5"
-                                    max="2"
-                                    step="0.1"
-                                    value={speed}
-                                    onChange={(e) => setSpeed(parseFloat(e.target.value))}
-                                    className="w-full mt-1"
-                                />
-                            </label>
+                        </label>
+                        <p className="text-white font-medium">Avatar Assistant</p>
+                        <p className="text-gray-400 text-sm mt-1">Ready to help you</p>
 
-                            <p className="text-white font-medium">Avatar Assistant</p>
-                            <p className="text-gray-400 text-sm mt-1">Ready to help you</p>
+
+                        <div className="mt-6 space-y-4 text-left">
+                            <div className="bg-gray-700 p-3 rounded">
+                                <h4 className="text-white font-medium mb-2">Recent Activity</h4>
+                                <p className="text-gray-300 text-sm">Last conversation: 2 hours ago</p>
+                            </div>
+                            <div className="bg-gray-700 p-3 rounded">
+                                <h4 className="text-white font-medium mb-2">Settings</h4>
+                                <p className="text-gray-300 text-sm">Voice enabled, Speed: {speed}x</p>
+                            </div>
+                            <div className="bg-gray-700 p-3 rounded">
+                                <h4 className="text-white font-medium mb-2">Tips</h4>
+                                <p className="text-gray-300 text-sm">Try asking me about any topic or upload a PDF file for analysis.</p>
+                            </div>
+                            <div className="bg-gray-700 p-3 rounded">
+                                <h4 className="text-white font-medium mb-2">Features</h4>
+                                <ul className="text-gray-300 text-xs space-y-1">
+                                    <li>• Voice synthesis with speed control</li>
+                                    <li>• PDF file upload and analysis</li>
+                                    <li>• Real-time conversation</li>
+                                    <li>• Animated avatar responses</li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -241,18 +256,8 @@ function ChatAssistantComponent() {
                     className="w-6 h-6 text-white lg:hidden hover:text-gray-300 transition-colors"
                     aria-label="Open menu"
                 >
-                    <svg
-                        aria-hidden="true"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeWidth="2"
-                            d="M5 7h14M5 12h14M5 17h14"
-                        />
+                    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M5 7h14M5 12h14M5 17h14" />
                     </svg>
                 </button>
                 <h1 className="text-xl md:text-2xl font-bold text-white text-center flex-1 lg:flex-none">
@@ -264,25 +269,23 @@ function ChatAssistantComponent() {
 
             <div className="flex flex-row flex-1 overflow-hidden">
 
-                <div className="hidden lg:flex lg:flex-col lg:w-1/4 xl:w-1/5 bg-gray-900 border-r border-gray-700">
+                <div className="hidden lg:flex lg:flex-col lg:w-1/4 xl:w-1/5 bg-gray-900 border-r border-gray-700 overflow-y-auto">
                     <div className="p-4 border-b border-gray-700">
                         <h2 className="text-lg font-semibold text-white mb-4">Avatar Assistant</h2>
                     </div>
-                    <div className=" p-4">
-
+                    <div className="p-4">
                         <div className="w-full bg-gray-800 rounded-lg p-6 text-center">
-
                             <Lottie
                                 lottieRef={lottieRef}
                                 animationData={talkingAvatar}
                                 loop={true}
-                                autoplay={false}
+                                autoplay={isTalking}
                                 style={{ width: '100%', height: '100%' }}
                             />
                             {spokenText && (
-                                <p className="mb-6 text-gray-700 italic select-text">{spokenText}</p>
+                                <p className="mb-6 text-gray-300 italic select-text">{spokenText.spokenText}</p>
                             )}
-                            <label className="block mb-2 text-sm font-medium text-gray-700">
+                            <label className="block mb-2 text-sm font-medium text-gray-300">
                                 Speed: {speed.toFixed(1)}x
                                 <input
                                     type="range"
@@ -294,7 +297,6 @@ function ChatAssistantComponent() {
                                     className="w-full mt-1"
                                 />
                             </label>
-
                             <p className="text-white font-medium">Avatar Assistant</p>
                             <p className="text-gray-400 text-sm mt-1">Ready to help you</p>
                         </div>
@@ -320,27 +322,23 @@ function ChatAssistantComponent() {
                             {conversationMessages.map((msg) => {
                                 const isCurrentUser = msg.senderId === currentUser?.id;
                                 return (
-                                    <div
-                                        key={msg.id}
-                                        className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
-                                    >
-                                        <div
-                                            className={`max-w-xs md:max-w-sm p-3 rounded-lg ${isCurrentUser
-                                                ? 'bg-blue-600 text-white rounded-br-none'
-                                                : 'bg-gray-700 text-white rounded-bl-none'
-                                                }`}
-                                        >
+                                    <div key={msg.id} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`max-w-xs md:max-w-sm p-3 rounded-lg ${isCurrentUser
+                                            ? 'bg-blue-600 text-white rounded-br-none'
+                                            : 'bg-gray-700 text-white rounded-bl-none'}`}>
                                             <p className="text-sm">{msg.content}</p>
-                                            <p className="text-xs mt-1 text-gray-300 text-right">{new Date(msg.timestamp).toLocaleTimeString()}</p>
+                                            <p className="text-xs mt-1 text-gray-300 text-right">
+                                                {new Date(msg.timestamp).toLocaleTimeString()}
+                                            </p>
                                         </div>
                                     </div>
                                 );
                             })}
                         </div>
                     )}
-
                 </div>
             </div>
+
 
             {selectedFile && (
                 <div className="text-sm text-yellow-300 mt-2">
@@ -348,10 +346,10 @@ function ChatAssistantComponent() {
                 </div>
             )}
 
+
             <div className="bg-gradient-to-r from-gray-800 via-blue-800 to-gray-800 p-3 md:p-4 border-t border-gray-700">
                 <div className="max-w-4xl mx-auto">
                     <div className="relative flex items-end">
-
                         <div className="absolute left-3 bottom-3 flex gap-1 md:gap-2 text-gray-400 z-10">
                             <button
                                 className="hover:text-white p-1 transition-colors"
@@ -384,16 +382,13 @@ function ChatAssistantComponent() {
                             </button>
                         </div>
 
-
                         <textarea
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
                             className="w-full p-3 pl-16 md:pl-20 pr-12 md:pr-14 border border-gray-600 rounded-2xl bg-gray-700 text-white placeholder-gray-400 resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all min-h-[44px] max-h-32 text-sm md:text-base"
                             placeholder="Type your message here..."
                             rows={1}
-
                         />
-
 
                         <button
                             type="button"
@@ -406,7 +401,6 @@ function ChatAssistantComponent() {
                             <span className="sr-only">Send message</span>
                         </button>
                     </div>
-
 
                     <div className="flex justify-between items-center mt-2 text-xs text-gray-400">
                         <span className="hidden sm:inline">Press Enter to send, Shift+Enter for new line</span>

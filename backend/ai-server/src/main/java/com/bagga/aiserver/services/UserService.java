@@ -7,16 +7,19 @@ import com.bagga.aiserver.entities.User;
 import com.bagga.aiserver.repositories.UserRepository;
 import com.bagga.aiserver.responses.CreateUserResponse;
 import com.bagga.aiserver.responses.LoginUserResponse;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.HashMap;
 
 @Service
@@ -59,7 +62,7 @@ public class UserService {
         }
     }
 
-    public LoginUserResponse loginUser(LoginUserDto loginUserDto) {
+    public LoginUserResponse loginUser(LoginUserDto loginUserDto , HttpServletResponse response) {
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
@@ -80,11 +83,26 @@ public class UserService {
                     .role(user.getRole())
                     .tel(user.getTel())
                     .token(token)
-                    .refreshToken(refreshToken)
+                    .refreshToken(null)
                     .build();
-            this.redisService.set(user.getId(),loginResponse);
-            var store = this.redisService.get(user.getId(), LoginUserResponse.class);
+            this.redisService.set(refreshToken,user.getEmail());
+            var store = this.redisService.get(refreshToken,String.class);
             log.info("Store: {}", store);
+            Cookie cookie = new Cookie("refreshToken", refreshToken);
+            cookie.setHttpOnly(true);
+            cookie.setSecure(false); // Set to true in production (HTTPS only)
+            cookie.setPath("/");
+            cookie.setMaxAge(7 * 24 * 60 * 60); // 7 days
+            response.addCookie(cookie);
+
+            Cookie accessTokenCookie = new Cookie("accessToken", token);
+            accessTokenCookie.setHttpOnly(true);
+            accessTokenCookie.setSecure(false); // Set to true in production
+            accessTokenCookie.setPath("/");
+            accessTokenCookie.setMaxAge(15 * 60); // 15 minutes
+            response.addCookie(accessTokenCookie);
+            log.info("refresh cookie: {}", cookie);
+            log.info("access cookie: {}", accessTokenCookie);
             return loginResponse;
 
         } catch (Exception e) {
@@ -93,34 +111,96 @@ public class UserService {
         }
     }
 
-    public LoginUserResponse refreshToken(String refreshToken) {
-        try {
-            User user = this.getUserFromValidToken(refreshToken);
-
-            String newAccessToken = jwtService.generateToken(user);
-            String newRefreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
-
-            LoginUserResponse loginResponse = LoginUserResponse.builder()
-                    .id(user.getId())
-                    .firstName(user.getFirstName())
-                    .lastName(user.getLastName())
-                    .cin(user.getCin())
-                    .email(user.getEmail())
-                    .role(user.getRole())
-                    .tel(user.getTel())
-                    .token(newAccessToken)
-                    .refreshToken(newRefreshToken)
-                    .build();
-            this.redisService.set(user.getId(),loginResponse);
-            var store = this.redisService.get(user.getId(), LoginUserResponse.class);
-            log.info("Store: {}", store);
-            return loginResponse;
-
-        } catch (Exception e) {
-            log.error("Error during refresh token process: {}", e.getMessage());
-            throw new RuntimeException("Could not refresh token", e);
+    public LoginUserResponse refreshToken(HttpServletRequest request, HttpServletResponse response) {
+        log.info("Refreshing token");
+        String refreshToken = null;
+        String accessToken = null;
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            throw new RuntimeException("No cookies found in request");
         }
+        for (Cookie cookie : cookies) {
+            if (cookie.getName().equals("refreshToken")) {
+                refreshToken = cookie.getValue();
+                break;
+            }
+        }
+
+
+
+        if (refreshToken == null) {
+            throw new RuntimeException("Refresh token not found in cookie");
+        }
+
+        String userEmail = redisService.get(refreshToken, String.class);
+        if (userEmail == null) {
+            throw new RuntimeException("Refresh token revoked or expired");
+        }
+
+        redisService.delete(refreshToken);
+
+        User user = getUserFromValidToken(refreshToken);
+        String newAccessToken = jwtService.generateToken(user);
+        String newRefreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
+
+        LoginUserResponse loginResponse = LoginUserResponse.builder()
+                .id(user.getId())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .cin(user.getCin())
+                .email(user.getEmail())
+                .role(user.getRole())
+                .tel(user.getTel())
+                .token(newAccessToken)
+                .refreshToken(null)
+                .build();
+
+        redisService.set(newRefreshToken, user.getEmail());
+
+        Cookie newCookie = new Cookie("refreshToken", newRefreshToken);
+        newCookie.setHttpOnly(true);
+        newCookie.setSecure(false);
+        newCookie.setPath("/");
+        newCookie.setMaxAge(7 * 24 * 60 * 60);
+        response.addCookie(newCookie);
+
+        Cookie newAccessTokenCookie = new Cookie("accessToken", newAccessToken);
+        newAccessTokenCookie.setHttpOnly(true);
+        newAccessTokenCookie.setSecure(false); // true in production
+        newAccessTokenCookie.setPath("/");
+        newAccessTokenCookie.setMaxAge(15 * 60);
+        response.addCookie(newAccessTokenCookie);
+
+        return loginResponse;
     }
+
+    public void logout(HttpServletRequest request, HttpServletResponse response) {
+        String refreshToken = null;
+
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("refreshToken".equals(cookie.getName())) {
+                    refreshToken = cookie.getValue();
+                    break;
+                }
+            }
+        }
+
+
+        if (refreshToken != null) {
+            redisService.delete(refreshToken);
+        }
+
+        Cookie clearedCookie = new Cookie("refreshToken", null);
+        clearedCookie.setHttpOnly(true);
+        clearedCookie.setSecure(true);
+        clearedCookie.setPath("/");
+        clearedCookie.setMaxAge(0);
+        response.addCookie(clearedCookie);
+    }
+
+
 
     private User getUserFromValidToken(String token) {
         String userEmail = jwtService.extractUsername(token);
@@ -137,4 +217,35 @@ public class UserService {
 
         return user;
     }
+
+    public LoginUserResponse getCurrentUser(HttpServletRequest request) {
+        String token = null;
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("accessToken".equals(cookie.getName())) {
+                    token = cookie.getValue();
+                    break;
+                }
+            }
+        }
+
+        if (token == null) {
+            throw new RuntimeException("Unauthorized");
+        }
+
+        User user = this.getUserFromValidToken(token);
+        return LoginUserResponse.builder()
+                .id(user.getId())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .cin(user.getCin())
+                .email(user.getEmail())
+                .role(user.getRole())
+                .tel(user.getTel())
+                .token(token)
+                .refreshToken(null)
+                .build();
+    }
+
 }

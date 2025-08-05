@@ -28,6 +28,7 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(auth-> auth
                         .requestMatchers("/api/login").permitAll()
                         .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/api/refresh").permitAll()
                         .requestMatchers("/api/tts/**").permitAll()
                         .requestMatchers("/api/createAdmin").permitAll()
                         .requestMatchers("/api/zones/**").permitAll()

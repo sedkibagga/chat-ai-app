@@ -4,10 +4,12 @@ package com.bagga.aiserver.services;
 import com.bagga.aiserver.dtos.InternalMessageDto;
 import com.bagga.aiserver.entities.ChatMessages;
 import com.bagga.aiserver.repositories.ChatMessageRepository;
+import com.bagga.aiserver.responses.MessageToSpeakResponse;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,16 +26,15 @@ public class ChatMessageService {
     private final ChatRoomService chatRoomService ;
     private final TextToSpeechService textToSpeechService ;
     private final PdfExtractorService pdfExtractorService;
+    private final SimpMessagingTemplate messagingTemplate;
+
     @Transactional
     public ChatMessages createMessage(InternalMessageDto messageDto) {
         try {
-            String userMessage = messageDto.getMessage() != null ? messageDto.getMessage() : "No message";
+            String content = messageDto.getMessage() != null ? messageDto.getMessage() : "No message";
 
-            String textExtracted = messageDto.getFile() != null
-                    ? pdfExtractorService.extractTextFromPdf(messageDto.getFile())
-                    : "No file uploaded";
 
-            String content = userMessage + " | File content: " + textExtracted;
+            log.info("content: {}", content);
 
             String chatRoomId = chatRoomService
                     .getChatRoomId(messageDto.getSenderId(), messageDto.getRecipientId(), true)
@@ -46,6 +47,14 @@ public class ChatMessageService {
                             content,
                             null);
 
+            MessageToSpeakResponse messageToSpeakResponse = MessageToSpeakResponse.builder()
+                    .spokenText(response.text())
+                    .build();
+            this.messagingTemplate.convertAndSendToUser(
+                    messageDto.getSenderId(),
+                    "/queue/messages/ai-asistant-spoken",
+                    messageToSpeakResponse
+            );
 
             ChatMessages chatMessagesSended = ChatMessages.builder()
                     .senderId(messageDto.getSenderId())
