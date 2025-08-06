@@ -61,15 +61,15 @@ public class GeminiController {
         try {
             log.info("messageDto: {}", messageDto);
             MultipartFile file = null;
-            if (messageDto.getFileContent() != null && messageDto.getFileName() != null) {
-                byte[] decoded = Base64.getDecoder().decode(messageDto.getFileContent());
-                file = new MockMultipartFile(
-                        messageDto.getFileName(),
-                        messageDto.getFileName(),
-                        "application/pdf",
-                        decoded
-                );
-            }
+//            if (messageDto.getFileContent() != null && messageDto.getFileName() != null) {
+//                byte[] decoded = Base64.getDecoder().decode(messageDto.getFileContent());
+//                file = new MockMultipartFile(
+//                        messageDto.getFileName(),
+//                        messageDto.getFileName(),
+//                        "application/pdf",
+//                        decoded
+//                );
+//            }
 
 
 

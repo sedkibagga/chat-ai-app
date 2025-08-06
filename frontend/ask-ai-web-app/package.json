@@ -11,6 +11,7 @@
     "postinstall": "flowbite-react patch"
   },
   "dependencies": {
+    "@lottiefiles/dotlottie-react": "^0.14.4",
     "@stomp/stompjs": "^7.1.1",
     "@tailwindcss/vite": "^4.1.11",
     "axios": "^1.10.0",
@@ -29,6 +30,7 @@
   "devDependencies": {
     "@eslint/js": "^9.29.0",
     "@types/howler": "^2.2.12",
+    "@types/node": "^24.2.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@types/sockjs-client": "^1.5.4",

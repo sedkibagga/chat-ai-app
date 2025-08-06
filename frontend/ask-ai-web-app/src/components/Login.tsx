@@ -22,7 +22,7 @@ const Login: React.FC = () => {
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
-    const { connect, setCurrentUser , loadUser  } = useChat();
+    const { connect, setCurrentUser, loadUser } = useChat();
     const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
     const [darkMode, setDarkMode] = useState(false);
     const [redMode, setRedMode] = useState(false);
@@ -67,6 +67,7 @@ const Login: React.FC = () => {
         try {
             setIsSubmitting(true);
             const userLoggedIn = await login(formData);
+
             console.log("User logged in:", userLoggedIn);
 
             setCurrentUser(userLoggedIn);
@@ -82,9 +83,11 @@ const Login: React.FC = () => {
                 tel: userLoggedIn.tel
             });
 
-            await localStorage.setItem('userData', JSON.stringify(userLoggedIn));
-           
-            loadUser();
+
+
+            await loadUser();
+
+
 
             navigate('/chatAsistant');
 
@@ -189,12 +192,12 @@ const Login: React.FC = () => {
                         type="submit"
                         disabled={isSubmitting}
                         className={`w-full py-2 px-4 rounded-md font-medium transition-all ${isSubmitting
-                                ? 'bg-gray-400 cursor-not-allowed'
-                                : redMode
-                                    ? 'bg-red-600 hover:bg-red-700 text-white'
-                                    : darkMode
-                                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : redMode
+                                ? 'bg-red-600 hover:bg-red-700 text-white'
+                                : darkMode
+                                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                    : 'bg-blue-600 hover:bg-blue-700 text-white'
                             }`}
                     >
                         {isSubmitting ? 'Logging in...' : 'Connect'}

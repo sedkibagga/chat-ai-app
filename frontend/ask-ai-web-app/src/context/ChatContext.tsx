@@ -100,6 +100,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
   const loadUser = async () => {
     try {
+      
       const res = await api.get("/api/me");
       setCurrentUser(res.data);
     } catch (error) {

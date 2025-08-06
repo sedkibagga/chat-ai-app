@@ -116,8 +116,9 @@ public class UserService {
         String refreshToken = null;
         String accessToken = null;
         Cookie[] cookies = request.getCookies();
-        if (cookies == null) {
-            throw new RuntimeException("No cookies found in request");
+        if (cookies == null || cookies.length == 0) {
+            throw new RuntimeException("Refresh token not found in cookie");
+
         }
         for (Cookie cookie : cookies) {
             if (cookie.getName().equals("refreshToken")) {
