@@ -9,6 +9,8 @@ import type { CreateMessageDto } from "../apis/DataParam/dtos";
 import type { ChatMessages } from "../apis/DataResponse/responses";
 import { extractTextFromFile } from "../apis/Controller/apisController";
 import voiceMessage from '../assets/Audio&Voice-A-002.json';
+import { v4 as uuidv4 } from 'uuid';
+
 function ChatAssistantComponent() {
     const [message, setMessage] = useState('');
     const [speed, setSpeed] = useState(1);
@@ -130,6 +132,7 @@ function ChatAssistantComponent() {
     };
 
     const sendMessageNow = (content: string, fileContent?: string, fileName?: string) => {
+        const correlationId = uuidv4();
         const messageDto: CreateMessageDto = {
             message: content,
             senderId: currentUser!.id,
@@ -139,7 +142,7 @@ function ChatAssistantComponent() {
         };
 
         const newMessage: ChatMessages = {
-            id: `temp-${Date.now()}`,
+            id: correlationId,
             chatId: '',
             senderId: currentUser!.id,
             recipientId: 'bot-1',
@@ -149,7 +152,7 @@ function ChatAssistantComponent() {
 
         setConversationMessages(prev => [...prev, newMessage]);
         sendPrivateMessage(messageDto);
-        fetchChatMessages(currentUser!.id, 'bot-1');
+        // fetchChatMessages(currentUser!.id, 'bot-1');
         setMessage('');
         setSelectedFile(null);
     };
@@ -191,29 +194,17 @@ function ChatAssistantComponent() {
 
     useEffect(() => {
         if (currentUser) {
-            setConversationMessages((prevMessages) => {
-                const tempMessagesMap = new Map();
-                prevMessages.forEach(msg => {
-                    if (msg.id.startsWith('temp-')) {
-                        const key = `${msg.content}-${msg.timestamp}`;
-                        tempMessagesMap.set(key, msg);
-                    }
+            setConversationMessages(prev => {
+                // Create a map of existing messages by ID
+                const messageMap = new Map(prev.map(msg => [msg.id, msg]));
+
+                // Add all server messages, replacing any existing ones
+                chatMessages.forEach(serverMsg => {
+                    messageMap.set(serverMsg.id, serverMsg);
                 });
 
-                const merged = [...chatMessages];
-                prevMessages.forEach(prevMsg => {
-                    if (prevMsg.id.startsWith('temp-')) {
-                        const exists = chatMessages.some(serverMsg =>
-                            serverMsg.content === prevMsg.content &&
-                            Math.abs(new Date(serverMsg.timestamp).getTime() - new Date(prevMsg.timestamp).getTime()) < 1000
-                        );
-                        if (!exists) {
-                            merged.push(prevMsg);
-                        }
-                    }
-                });
-
-                return merged.sort(
+                // Convert back to array and sort
+                return Array.from(messageMap.values()).sort(
                     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
                 );
             });
