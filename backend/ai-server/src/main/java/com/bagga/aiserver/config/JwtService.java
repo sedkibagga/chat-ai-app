@@ -20,7 +20,7 @@ import java.util.function.Function;
 public class JwtService {
 
 
-    private static final String SECRET_KEY = "xZbS8VmV7wLm5mQt5eNX7K6VQ5KY4ZPzG6j4CmH8Q9L2J7XkWzV8UzZkN2V4C5T8";
+    private static final String SECRET_KEY = ;
 
     public JwtService() {
 
