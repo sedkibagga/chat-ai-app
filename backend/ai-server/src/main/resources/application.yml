@@ -3,9 +3,9 @@ spring:
     mongodb:
       host: localhost
       port: 27017
-      database: ask-ai-app
-      username: bagga
-      password: 3asfour25102212
+      database: 
+      username: 
+      password: 
       authentication-database: admin
 
     redis:
