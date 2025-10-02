@@ -4,8 +4,8 @@ spring:
       host: localhost
       port: 27017
       database: ask-ai-app
-      username: bagga
-      password: 3asfour25102212
+      username: 
+      password:
       authentication-database: admin
 
     redis:
